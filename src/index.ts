@@ -11,6 +11,8 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -42,6 +44,22 @@ function ensureDirsOnPath(): string[] {
     }
 
     return added;
+}
+
+// ── Symlink searx to ~/.pi/agent/bin ────────────────────
+
+const AGENT_BIN = path.join(os.homedir(), ".pi", "agent", "bin");
+const SEARX_BIN = path.join(BIN_DIR, "searx");
+const SEARX_LINK = path.join(AGENT_BIN, "searx");
+
+function ensureSymlink(): void {
+    if (!fs.existsSync(SEARX_LINK)) {
+        try {
+            fs.symlinkSync(SEARX_BIN, SEARX_LINK);
+        } catch {
+            // May not have write access
+        }
+    }
 }
 
 // ── Health ────────────────────────────────────────────────
@@ -83,6 +101,7 @@ async function startSearxng(): Promise<boolean> {
 
 export default function searxngExtension(pi: ExtensionAPI) {
     const added = ensureDirsOnPath();
+    ensureSymlink();
 
     pi.on("session_start", async (_event, ctx) => {
         if (added.length > 0) {
