@@ -1,68 +1,107 @@
 # pi-searxng
 
-SearXNG integration for [pi](https://pi.dev) — web search and fetch tools with local instance management.
+SearXNG integration for [pi](https://pi.dev) — composable search primitives for the agent harness.
 
-## What it provides
+## Architecture
 
-- **`web_search` tool** — Query SearXNG directly from the LLM with full API support (categories, engines, time ranges, language, pagination)
-- **`web_fetch` tool** — Convert URLs to clean markdown via markitdown (handles HTML, PDF, DOCX, PPTX)
-- **`/searxng` command** — Manage the SearXNG Docker service (start/stop/restart/status/engines)
+Following the **Search as Code** principle: search primitives must be programmable and composable, not locked behind monolithic tool calls.
 
-The extension auto-starts SearXNG when needed and reports engine health issues.
+| Layer | Interface | Purpose |
+|-------|-----------|---------|
+| **CLI** | `searx` binary | Composable from bash: pipe, chain, loop, filter with jq |
+| **Skill** | `/search` SKILL.md | Teaches the shade how to use the CLI and direct API |
+| **Extension** | `/searxng` command | TUI management: status, start, stop, restart, engines |
+| **Service** | Docker Compose | Self-hosted SearXNG with local Valkey cache |
+
+The shade uses `searx search` and `searx fetch` from bash — the same composability Perplexity's SaC architecture provides via SDK, but in the shade's native sandbox (bash).
 
 ## Installation
-
-```bash
-pi install git:github.com/sigilmakes/pi-searxng
-```
-
-Or from a local checkout:
 
 ```bash
 pi install /path/to/pi-searxng
 ```
 
+## The `searx` CLI
+
+### Search
+
+```bash
+searx search "query"                     # JSON, 8 results (default)
+searx search "query" --text              # Human-readable
+searx search "query" --json              # Raw SearXNG response (pipe to jq)
+searx search "query" -c it               # IT/tech category
+searx search "query" -c news -t week    # Recent news
+searx search "query" -e wikipedia,mdn   # Specific engines only
+searx search "query" -l en -n 3         # English, 3 results
+searx search "query" -p 2               # Page 2
+```
+
+**Options:** `-c` categories, `-e` engines, `-t` time range, `-l` language, `-n` limit, `-p` page
+
+### Fetch
+
+```bash
+searx fetch "https://example.com"             # Markdown content (JSON)
+searx fetch "https://example.com" --text      # Just the text
+searx fetch "https://example.com" -n 3000     # First 3000 chars
+searx fetch "https://example.com" -o 3000     # Continue from offset
+```
+
+### Service Management
+
+```bash
+searx status           # Health check
+searx start            # Start SearXNG
+searx stop             # Stop SearXNG
+searx restart          # Restart (clears engine suspensions)
+searx engines          # List engines by category
+```
+
+Add `--text` for human-readable output.
+
+### Composition Examples
+
+```bash
+# Extract URLs
+searx search "rust async" -c it -n 5 | jq -r '.results[].url'
+
+# Chain search → fetch
+URL=$(searx search "tokio" -c it -n 1 --json | jq -r '.results[0].url')
+searx fetch "$URL" --text
+
+# Search multiple categories
+for cat in general news; do searx search "climate" -c $cat -n 2 --text; done
+
+# Filter with jq
+searx search "python asyncio" -c it --json | jq '[.results[] | select(.engines | contains(["stackoverflow"]))]'
+
+# Paginate long documents
+searx fetch "$URL" -n 5000 --text
+searx fetch "$URL" -n 5000 -o 5000 --text
+```
+
+## Pi Extension
+
+The `/searxng` command provides TUI management:
+
+- `/searxng` or `/searxng status` — service health and engine status
+- `/searxng start` / `stop` / `restart` — lifecycle management
+- `/searxng engines` — list enabled engines by category
+
 ## Prerequisites
 
-- **Docker** — The extension manages a SearXNG container via `docker compose`
-- **uvx** — For `web_fetch` (uses `markitdown` via `uvx`)
-- SearXNG runs on `localhost:8042` (configurable via `SEARXNG_URL` env var)
+- **Docker** — SearXNG runs as a Docker container
+- **uvx** — For `searx fetch` (uses markitdown via uvx)
 
-## Tools
-
-### web_search
-
-| Parameter    | Type   | Description                                                       |
-| ------------ | ------ | ----------------------------------------------------------------- |
-| `query`      | string | Search query (required)                                           |
-| `categories` | string | SearXNG categories: general, news, images, it, science, etc.      |
-| `engines`    | string | Specific engines: google, brave, wikipedia, stackoverflow, etc.   |
-| `time_range` | enum   | `day`, `week`, `month`, `year`                                    |
-| `language`   | string | Result language code: en, de, fr, etc.                           |
-| `pageno`     | number | Page number for pagination                                        |
-| `limit`      | number | Max results (1–20, default 8)                                    |
-
-### web_fetch
-
-| Parameter    | Type   | Description                                         |
-| ------------ | ------ | --------------------------------------------------- |
-| `url`        | string | URL to fetch (required)                             |
-| `max_length` | number | Maximum characters to return (default 5000)        |
-| `offset`     | number | Character offset for paginating long documents     |
-
-## Commands
-
-- `/searxng` or `/searxng status` — Show service status and engine health
-- `/searxng start` — Start the SearXNG container
-- `/searxng stop` — Stop the SearXNGNG container
-- `/searxng restart` — Restart (clears engine suspensions)
-- `/searxng engines` — List enabled engines by category
+SearXNG runs on `localhost:8042` (configurable via `SEARXNG_URL` env var).
 
 ## Configuration
 
-SearXNG configuration is in `docker/searxng/settings.yml`. The Docker Compose file is in `docker/docker-compose.yaml`.
-
-To change the SearXNG port or other Docker settings, edit the compose file and run `/searxng restart`.
+```
+docker/docker-compose.yaml       — Docker service definition
+docker/searxng/settings.yml      — Server config, formats, redis
+docker/searxng/limiter.toml     — Rate limiting (disabled for local use)
+```
 
 ## License
 
