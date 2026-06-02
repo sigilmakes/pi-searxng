@@ -26,7 +26,34 @@ outgoing:
 
 # Enable engines that work reliably for self-hosted instances
 engines:
-    # --- General search: reliable engines ---
+    # --- Browser-rendered general search engines ---
+    # These are offline engines: SearXNG calls the local render server
+    # instead of scraping search engines with plain HTTP.
+    - name: google playwright
+      engine: google_pw
+      shortcut: gpw
+      disabled: false
+      categories:
+        - general
+        - web
+
+    - name: duckduckgo playwright
+      engine: ddg_pw
+      shortcut: ddgpw
+      disabled: false
+      categories:
+        - general
+        - web
+
+    - name: brave playwright
+      engine: brave_pw
+      shortcut: brpw
+      disabled: false
+      categories:
+        - general
+        - web
+
+    # --- General search: reliable plain HTTP engines ---
     - name: bing
       engine: bing
       shortcut: bi

@@ -23,11 +23,18 @@ services:
       - searxng
     ports:
       - "8042:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./searxng:/etc/searxng:rw
+      - ./engines/pw_common.py:/usr/local/searxng/searx/engines/pw_common.py:ro
+      - ./engines/google_pw.py:/usr/local/searxng/searx/engines/google_pw.py:ro
+      - ./engines/ddg_pw.py:/usr/local/searxng/searx/engines/ddg_pw.py:ro
+      - ./engines/brave_pw.py:/usr/local/searxng/searx/engines/brave_pw.py:ro
       - searxng-data:/var/cache/searxng:rw
     environment:
       - SEARXNG_BASE_URL=http://localhost:8042/
+      - SEARXNG_RENDER_URL=http://host.docker.internal:8118/render
       - FORCE_OWNERSHIP=false
     logging:
       driver: "json-file"
