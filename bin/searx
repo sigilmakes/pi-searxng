@@ -1,4 +1,5 @@
 #!/bin/sh
-# searx — CLI launcher using jiti (same TS runtime as pi extensions)
-DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/../node_modules/.bin/jiti" "$DIR/searx.ts" "$@"
+# searx — SearXNG CLI
+SELF="$(readlink -f "$0")"
+DIR="$(cd "$(dirname "$SELF")" && pwd)"
+exec "$DIR/../node_modules/.bin/jiti" "$DIR/../src/cli.ts" "$@"

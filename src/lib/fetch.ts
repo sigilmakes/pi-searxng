@@ -88,6 +88,7 @@ async function browserFetch(
 	offset: number,
 ): Promise<FetchOutput & { rendered: boolean }> {
 	const rendered = await browser.render(url);
+	await browser.close();
 
 	const total = rendered.text.length;
 	const sliced = rendered.text.slice(offset, offset + maxChars);

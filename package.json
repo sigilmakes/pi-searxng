@@ -7,7 +7,7 @@
     "pi-package"
   ],
   "bin": {
-    "searx": "./bin/searx.ts"
+    "searx": "./bin/searx"
   },
   "pi": {
     "extensions": [
