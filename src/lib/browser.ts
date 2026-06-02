@@ -1,20 +1,17 @@
 /**
- * Browser rendering via playwright-cli.
+ * Browser rendering via Playwright Node API.
  *
- * Uses @playwright/cli as a composable CLI tool — the shade calls it from
- * bash like any other command. No sidecar containers needed. The browser
- * launches on demand, renders the page, closes when done.
+ * Uses playwright-core directly — no CLI subprocess juggling.
+ * The browser binary is found via:
+ *   1. SEARX_BROWSER_PATH env var (user override)
+ *   2. Playwright's built-in browser discovery
  *
- * For SearXNG custom engines (Phase 3), a thin HTTP service wraps the same
- * playwright-cli calls so SearXNG Python modules can reach it.
+ * For SearXNG custom engines (Phase 3), a thin HTTP service can wrap
+ * the same rendering logic so Python engines can reach it.
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
-
-const PLAYWRIGHT_CLI = process.env.PLAYWRIGHT_CLI || "playwright-cli";
+import type { Browser, Page } from "playwright-core";
+import { chromium } from "playwright-core";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -27,15 +24,44 @@ export interface BrowserResult {
 	duration_ms: number;
 }
 
-// ── Availability ───────────────────────────────────────────
+// ── Browser lifecycle ─────────────────────────────────────
 
+let _browser: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+	if (_browser && _browser.isConnected()) return _browser;
+
+	const launchOptions: Record<string, unknown> = {
+		headless: true,
+	};
+
+	// User override for browser binary (NixOS, custom paths, etc.)
+	const browserPath = process.env.SEARX_BROWSER_PATH;
+	if (browserPath) {
+		launchOptions.executablePath = browserPath;
+	}
+
+	_browser = await chromium.launch(launchOptions);
+	return _browser;
+}
+
+/** Close the shared browser instance. */
+export async function close(): Promise<void> {
+	if (_browser) {
+		await _browser.close();
+		_browser = null;
+	}
+}
+
+/** Check if a browser is available (can we launch one?). */
 let _available: boolean | null = null;
 
-/** Check if playwright-cli is installed and a browser is available. */
 export async function isAvailable(): Promise<boolean> {
 	if (_available !== null) return _available;
 	try {
-		await execFileAsync(PLAYWRIGHT_CLI, ["--version"], { timeout: 10_000 });
+		const browser = await getBrowser();
+		await browser.close();
+		_browser = null;
 		_available = true;
 	} catch {
 		_available = false;
@@ -43,7 +69,7 @@ export async function isAvailable(): Promise<boolean> {
 	return _available;
 }
 
-/** Reset cached availability (e.g. after install). */
+/** Reset cached availability. */
 export function resetAvailability(): void {
 	_available = null;
 }
@@ -52,147 +78,136 @@ export function resetAvailability(): void {
 
 /**
  * Render a URL in a headless browser and extract content.
- *
- * Uses playwright-cli sessions so the browser stays alive across calls
- * within a session, but closes cleanly on process exit.
  */
 export async function render(
 	url: string,
 	opts: {
-		wait?: number;       // seconds to wait after load (default: 2)
-		session?: string;    // playwright-cli session name
-		timeout?: number;    // total timeout in seconds (default: 30)
+		wait?: number; // seconds to wait after load (default: 2)
+		timeout?: number; // navigation timeout in seconds (default: 30)
 	} = {},
 ): Promise<BrowserResult> {
 	const start = Date.now();
-	const session = opts.session || "searx";
 	const wait = opts.wait ?? 2;
 	const timeout = (opts.timeout ?? 30) * 1000;
 
-	// Open or navigate to URL in session
+	const browser = await getBrowser();
+	const context = await browser.newContext({
+		userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		viewport: { width: 1280, height: 720 },
+	});
+	const page = await context.newPage();
+
 	try {
-		// Try goto first (session may already exist)
-		try {
-			await execFileAsync(
-				PLAYWRIGHT_CLI,
-				["-s", session, "goto", url],
-				{ timeout: timeout },
-			);
-		} catch {
-			// Session doesn't exist — open a new one
-			await execFileAsync(
-				PLAYWRIGHT_CLI,
-				["-s", session, "open", url],
-				{ timeout: timeout },
-			);
-		}
+		await page.goto(url, {
+			waitUntil: "networkidle",
+			timeout,
+		});
 
-		// Wait for JS to render
+		// Extra wait for JS frameworks to hydrate
 		if (wait > 0) {
-			await new Promise((r) => setTimeout(r, wait * 1000));
+			await page.waitForTimeout(wait * 1000);
 		}
 
-		// Extract page title
-		const { stdout: titleOut } = await execFileAsync(
-			PLAYWRIGHT_CLI,
-			["-s", session, "--raw", "eval", "document.title"],
-			{ timeout: 10_000 },
-		);
+		const title = await page.title();
+		const html = await page.content();
 
-		// Extract full HTML
-		const { stdout: htmlOut } = await execFileAsync(
-			PLAYWRIGHT_CLI,
-			["-s", session, "--raw", "eval", "document.documentElement.outerHTML"],
-			{ timeout: 15_000 },
-		);
-
-		// Extract visible text (cleaner than HTML for content extraction)
-		const { stdout: textOut } = await execFileAsync(
-			PLAYWRIGHT_CLI,
-			[
-				"-s", session, "--raw", "eval",
-				`(() => {
-					const walker = document.createTreeWalker(
-						document.body,
-						NodeFilter.SHOW_TEXT,
-						null
-					);
-					const parts = [];
-					while (walker.nextNode()) {
-						const t = walker.currentNode.textContent.trim();
-						if (t) parts.push(t);
-					}
-					return parts.join('\\n');
-				})()`,
-			],
-			{ timeout: 15_000 },
-		);
+		// Extract visible text — cleaner than raw HTML
+		const text = await page.evaluate(() => {
+			const walker = document.createTreeWalker(
+				document.body,
+				NodeFilter.SHOW_TEXT,
+				null,
+			);
+			const parts: string[] = [];
+			while (walker.nextNode()) {
+				const t = walker.currentNode.textContent?.trim();
+				if (t) parts.push(t);
+			}
+			return parts.join("\n");
+		});
 
 		return {
 			url,
-			title: titleOut.trim(),
-			html: htmlOut.trim(),
-			text: textOut.trim(),
+			title,
+			html,
+			text,
 			rendered: true,
 			duration_ms: Date.now() - start,
 		};
-	} catch (err) {
-		throw new Error(
-			`Browser render failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
-		);
+	} finally {
+		await context.close();
 	}
 }
 
 /**
- * Close the browser session.
+ * Extract content matching CSS selectors from a rendered page.
  */
-export async function close(session = "searx"): Promise<void> {
+export async function extract(
+	url: string,
+	selectors: string[],
+	opts: {
+		wait?: number;
+		timeout?: number;
+	} = {},
+): Promise<Array<{ selector: string; items: string[] }>> {
+	const browser = await getBrowser();
+	const context = await browser.newContext({
+		userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		viewport: { width: 1280, height: 720 },
+	});
+	const page = await context.newPage();
+
 	try {
-		await execFileAsync(PLAYWRIGHT_CLI, ["-s", session, "close"], {
-			timeout: 10_000,
+		await page.goto(url, {
+			waitUntil: "networkidle",
+			timeout: (opts.timeout ?? 30) * 1000,
 		});
-	} catch {
-		// Session may not exist — ignore
-	}
-}
 
-/**
- * Close all browser sessions.
- */
-export async function closeAll(): Promise<void> {
-	try {
-		await execFileAsync(PLAYWRIGHT_CLI, ["close-all"], { timeout: 10_000 });
-	} catch {
-		// ignore
+		if ((opts.wait ?? 2) > 0) {
+			await page.waitForTimeout((opts.wait ?? 2) * 1000);
+		}
+
+		const results: Array<{ selector: string; items: string[] }> = [];
+		for (const sel of selectors) {
+			const elements = await page.$$(sel);
+			const items = await Promise.all(
+				elements.map((el) => el.textContent().then((t) => t?.trim() || "")),
+			);
+			results.push({ selector: sel, items: items.filter(Boolean) });
+		}
+
+		return results;
+	} finally {
+		await context.close();
 	}
 }
 
 // ── JS detection ───────────────────────────────────────────
 
 /**
- * Detect if a URL likely needs browser rendering.
+ * Detect if raw HTML likely needs browser rendering.
  *
- * Heuristic approach inspired by ketch: check for SPA markers,
- * high script-to-text ratio, and known JS framework signals.
+ * Heuristic: check for SPA markers, high script-to-text ratio,
+ * and known JS framework signals.
  */
 export function needsBrowser(html: string): boolean {
 	const lower = html.toLowerCase();
 
 	// SPA root markers
 	const spaMarkers = [
-		'__next', '__nuxt', 'id="app"', 'id="root"',
-		'ng-app', 'data-reactroot', 'data-server-rendered',
+		"__next", "__nuxt", 'id="app"', 'id="root"',
+		"ng-app", "data-reactroot", "data-server-rendered",
 	];
 	if (spaMarkers.some((m) => lower.includes(m))) return true;
 
-	// Heavy script presence: count <script> tags vs visible text
+	// Heavy script presence vs visible text
 	const scriptMatches = lower.match(/<script[\s>]/g);
 	const scriptCount = scriptMatches ? scriptMatches.length : 0;
 	const textLength = html.replace(/<[^>]+>/g, "").trim().length;
 	if (scriptCount > 5 && textLength < scriptCount * 200) return true;
 
 	// Meta redirect or JS-only content
-	if (lower.includes('window.location') && textLength < 500) return true;
+	if (lower.includes("window.location") && textLength < 500) return true;
 
 	return false;
 }
