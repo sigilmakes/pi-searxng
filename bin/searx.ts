@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * searx CLI launcher — uses jiti (same as pi) to run the TypeScript CLI.
- * No build step needed.
+ * searx CLI launcher — uses jiti (same runtime as pi extensions) for TS resolution.
  */
 
 import { createJiti } from "jiti/static";
