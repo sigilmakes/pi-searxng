@@ -3,7 +3,7 @@
 
 from urllib.parse import urlencode
 from searx.result_types import EngineResults
-from pw_common import render, generic_h3_results, generic_anchor_results, first_nonempty
+from searx.engines.pw_common import render, generic_h3_results, generic_anchor_results, first_nonempty
 
 engine_type = "offline"
 categories = ["general", "web"]
