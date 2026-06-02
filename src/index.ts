@@ -2,17 +2,21 @@
  * SearXNG extension for pi
  *
  * Thin harness — /searxng command for TUI interaction.
+ * On session start: ensures `searx` CLI is on PATH and SearXNG is running.
  * Search and fetch are handled by the `searx` CLI, composable from bash.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const COMPOSE_FILE = path.join(PACKAGE_ROOT, "docker", "docker-compose.yaml");
+const BIN_DIR = path.join(PACKAGE_ROOT, "bin");
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8042";
 
 const execFileAsync = (cmd: string, args: string[]): Promise<string> =>
@@ -22,6 +26,19 @@ const execFileAsync = (cmd: string, args: string[]): Promise<string> =>
 			else resolve(stdout);
 		});
 	});
+
+// ── PATH setup ────────────────────────────────────────────
+
+function ensureBinOnPath(): boolean {
+	const currentPath = process.env.PATH || "";
+	const paths = currentPath.split(path.delimiter);
+	if (paths.includes(BIN_DIR)) return false; // already there
+
+	process.env.PATH = `${BIN_DIR}${path.delimiter}${currentPath}`;
+	return true; // was added
+}
+
+// ── Health ────────────────────────────────────────────────
 
 async function isHealthy(): Promise<boolean> {
 	try {
@@ -53,7 +70,25 @@ async function startSearxng(): Promise<boolean> {
 	}
 }
 
+// ── Extension ─────────────────────────────────────────────
+
 export default function searxngExtension(pi: ExtensionAPI) {
+	// Add bin/ to PATH so `searx` is available in bash
+	const added = ensureBinOnPath();
+
+	pi.on("session_start", async (_event, ctx) => {
+		if (added) {
+			ctx.ui.notify(`searx CLI on PATH: ${BIN_DIR}`, "info");
+		}
+
+		// Ensure SearXNG is running
+		if (await isHealthy()) return;
+
+		ctx.ui.notify("Starting SearXNG...", "info");
+		const ok = await startSearxng();
+		ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.", ok ? "info" : "warning");
+	});
+
 	pi.registerCommand("searxng", {
 		description: "Manage SearXNG: status, start, stop, restart, engines",
 		async handler(args, ctx) {
