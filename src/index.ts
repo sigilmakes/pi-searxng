@@ -2,7 +2,11 @@
  * SearXNG extension for pi
  *
  * Thin harness — /searxng command for TUI interaction.
- * On session start: ensures `searx` CLI is on PATH and SearXNG is running.
+ * On session start:
+ *   1. Ensures `searx` CLI is on PATH
+ *   2. Ensures Playwright browser binaries are installed
+ *   3. Ensures SearXNG is running
+ *
  * Search and fetch are handled by the `searx` CLI, composable from bash.
  */
 
@@ -12,37 +16,45 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const COMPOSE_FILE = path.join(PACKAGE_ROOT, "docker", "docker-compose.yaml");
 const BIN_DIR = path.join(PACKAGE_ROOT, "bin");
+const NM_BIN_DIR = path.join(PACKAGE_ROOT, "node_modules", ".bin");
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8042";
-
-const execFileAsync = (cmd: string, args: string[]): Promise<string> =>
-	new Promise((resolve, reject) => {
-		execFile(cmd, args, { timeout: 30_000 }, (err, stdout, stderr) => {
-			if (err) reject(err);
-			else resolve(stdout);
-		});
-	});
 
 // ── PATH setup ────────────────────────────────────────────
 
-function ensureBinOnPath(): boolean {
+function ensureDirsOnPath(): string[] {
 	const currentPath = process.env.PATH || "";
 	const paths = currentPath.split(path.delimiter);
-	if (paths.includes(BIN_DIR)) return false; // already there
+	const added: string[] = [];
 
-	process.env.PATH = `${BIN_DIR}${path.delimiter}${currentPath}`;
-	return true; // was added
+	for (const dir of [NM_BIN_DIR, BIN_DIR]) {
+		if (!paths.includes(dir)) {
+			added.push(dir);
+		}
+	}
+
+	if (added.length > 0) {
+		process.env.PATH = `${added.join(path.delimiter)}${path.delimiter}${currentPath}`;
+	}
+
+	return added;
 }
 
 // ── Health ────────────────────────────────────────────────
 
 async function isHealthy(): Promise<boolean> {
 	try {
-		const resp = await fetch(SEARXNG_URL, { signal: AbortSignal.timeout(3000), redirect: "follow" });
+		const resp = await fetch(SEARXNG_URL, {
+			signal: AbortSignal.timeout(3000),
+			redirect: "follow",
+		});
 		return resp.ok;
 	} catch {
 		return false;
@@ -70,15 +82,57 @@ async function startSearxng(): Promise<boolean> {
 	}
 }
 
+// ── Playwright management ─────────────────────────────────
+
+const PLAYWRIGHT_CLI = path.join(NM_BIN_DIR, "playwright-cli");
+
+async function isPlaywrightInstalled(): Promise<boolean> {
+	if (!fs.existsSync(PLAYWRIGHT_CLI)) return false;
+	// Check if browser binaries are installed by looking for Chromium
+	try {
+		const { stdout } = await execFileAsync(PLAYWRIGHT_CLI, ["--version"], {
+			timeout: 10_000,
+		});
+		return !!stdout.trim();
+	} catch {
+		return false;
+	}
+}
+
+async function ensurePlaywrightBinary(): Promise<boolean> {
+	if (await isPlaywrightInstalled()) return true;
+
+	try {
+		// playwright-cli install downloads Chromium if not present
+		await execFileAsync(PLAYWRIGHT_CLI, ["install", "--with-deps", "chromium"], {
+			timeout: 120_000, // browser download can take a minute
+		});
+		return true;
+	} catch (err) {
+		return false;
+	}
+}
+
 // ── Extension ─────────────────────────────────────────────
 
 export default function searxngExtension(pi: ExtensionAPI) {
-	// Add bin/ to PATH so `searx` is available in bash
-	const added = ensureBinOnPath();
+	// Add bin/ and node_modules/.bin/ to PATH so `searx` and `playwright-cli` are available
+	const added = ensureDirsOnPath();
 
 	pi.on("session_start", async (_event, ctx) => {
-		if (added) {
-			ctx.ui.notify(`searx CLI on PATH: ${BIN_DIR}`, "info");
+		if (added.length > 0) {
+			ctx.ui.notify(`searx CLI on PATH: ${added.join(", ")}`, "info");
+		}
+
+		// Ensure Playwright browser binary is installed (one-time ~350MB download)
+		if (fs.existsSync(NM_BIN_DIR)) {
+			const pwOk = await ensurePlaywrightBinary();
+			if (!pwOk) {
+				ctx.ui.notify(
+					"Playwright browser not installed. Browser rendering unavailable. Run: playwright-cli install chromium",
+					"warning",
+				);
+			}
 		}
 
 		// Ensure SearXNG is running
@@ -86,7 +140,10 @@ export default function searxngExtension(pi: ExtensionAPI) {
 
 		ctx.ui.notify("Starting SearXNG...", "info");
 		const ok = await startSearxng();
-		ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.", ok ? "info" : "warning");
+		ctx.ui.notify(
+			ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.",
+			ok ? "info" : "warning",
+		);
 	});
 
 	pi.registerCommand("searxng", {
@@ -119,6 +176,11 @@ export default function searxngExtension(pi: ExtensionAPI) {
 							text += "\nCould not check engine health.";
 						}
 					}
+
+					// Show Playwright status
+					const pwOk = await isPlaywrightInstalled();
+					text += `\nPlaywright: ${pwOk ? "✓ installed" : "✗ not installed"}`;
+
 					ctx.ui.notify(text, "info");
 					break;
 				}
@@ -191,9 +253,24 @@ export default function searxngExtension(pi: ExtensionAPI) {
 					break;
 				}
 
+				case "playwright": {
+					const pwOk = await isPlaywrightInstalled();
+					if (pwOk) {
+						ctx.ui.notify("Playwright: ✓ installed and ready", "info");
+					} else {
+						ctx.ui.notify("Installing Playwright browser (one-time download)...", "info");
+						const ok = await ensurePlaywrightBinary();
+						ctx.ui.notify(
+							ok ? "Playwright installed." : "Playwright install failed. Check network.",
+							ok ? "info" : "error",
+						);
+					}
+					break;
+				}
+
 				default:
 					ctx.ui.notify(
-						`Unknown subcommand: ${sub}\nUsage: /searxng [status|start|stop|restart|engines]`,
+						`Unknown subcommand: ${sub}\nUsage: /searxng [status|start|stop|restart|engines|playwright]`,
 						"warning",
 					);
 			}
