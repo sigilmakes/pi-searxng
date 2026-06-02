@@ -20,6 +20,7 @@ import * as service from "./lib/service.js";
 import * as browser from "./lib/browser.js";
 import { fetchUrl } from "./lib/fetch.js";
 import * as fmt from "./lib/format.js";
+import { startServer } from "./render-server.js";
 import type { StatusOutput } from "./lib/format.js";
 
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8042";
@@ -292,6 +293,20 @@ program
             }
             const result = await searxng.listEngines();
             writeOut(opts.text ? fmt.enginesText(result) : fmt.enginesJSON(result));
+        } catch (err) {
+            errorOut(err instanceof Error ? err.message : String(err));
+        }
+    });
+
+// ── render-server ────────────────────────────────────────
+
+program
+    .command("render-server")
+    .description("Start HTTP rendering service for SearXNG engines")
+    .option("--port <number>", "Port to listen on", 8118)
+    .action(async (opts: { port?: number }) => {
+        try {
+            await startServer(opts.port || 8118);
         } catch (err) {
             errorOut(err instanceof Error ? err.message : String(err));
         }
