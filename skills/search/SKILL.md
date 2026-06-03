@@ -1,6 +1,6 @@
 ---
 name: search
-description: Search the web with SearXNG via the `searx` CLI. Always diagnose with `searx doctor --text` before first use. Compose searches from bash; use browser auth only when Google/challenges require it.
+description: Search the web with SearXNG via the `searx` CLI. Compose searches from bash; use browser auth only when Google/challenges require it.
 argument-hint: "[search query]"
 ---
 
@@ -8,25 +8,23 @@ argument-hint: "[search query]"
 
 Use `searx` from bash. JSON is default; add `--text` for readable output.
 
-## First command
-
-```bash
-searx doctor --text
-```
-
-Follow doctor’s `Recommended search`. If service/render/browser are unhealthy, run the lifecycle command doctor suggests before searching.
-
-## Default search
+## Search
 
 ```bash
 searx search "query" --text
 searx search "query" --json | jq '.results[:3]'
+searx search "query" -c news -n 5 --text
+searx search "query" -e "duckduckgo playwright,wikipedia" -n 5 --text
 ```
 
-If Google auth/profile is absent and Google is not required:
+Options: `-c` categories, `-e` engines, `-t` time range, `-l` language, `-n` limit, `-p` page, `--json`, `--text`.
+
+## Fetch / Browse
 
 ```bash
-searx search "query" -e "duckduckgo playwright,wikipedia" -n 5 --text
+searx fetch "https://example.com" --text
+searx fetch "https://example.com" --browser --text
+searx browse "https://example.com" --extract "h1,h2" --text
 ```
 
 ## Browser auth
@@ -36,10 +34,25 @@ Only when Google matters or a challenge appears:
 ```bash
 searx browser-auth "https://www.google.com/search?q=test"
 searx render restart
-searx doctor --text
 ```
 
 `browser-auth` opens the browser and prompts the user automatically. The agent just waits for completion. No CAPTCHA solvers or stealth libraries.
+
+## When something is broken
+
+If search returns 0 results unexpectedly or engines are down, diagnose:
+
+```bash
+searx doctor --text
+```
+
+Follow doctor's suggestions. Common fixes:
+
+```bash
+searx start          # SearXNG not responding
+searx render start   # render server stopped
+searx restart        # engine suspensions
+```
 
 ## More when needed
 
