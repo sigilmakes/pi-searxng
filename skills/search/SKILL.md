@@ -10,6 +10,23 @@ argument-hint: "[search query]"
 
 Use `searx` from bash. It returns JSON by default and human-readable output with `--text`.
 
+## Start here: diagnose once per session
+
+Before the first search in a session, run:
+
+```bash
+searx doctor --text
+```
+
+Use the output to choose engines:
+
+- SearXNG/render healthy + browser profile present → Google Playwright is fair game.
+- SearXNG/render healthy + browser profile absent → prefer `duckduckgo playwright,wikipedia`; run browser auth only if Google matters.
+- SearXNG or render unhealthy → run the suggested lifecycle command (`searx start`, `searx render restart`, or `/searxng status`) before searching.
+- Browser unavailable → set `browserPath` with `searx config set browserPath "$(which chromium)"`.
+
+After changes to browser auth, render server, or Docker config, run `searx doctor --text` again. Trust diagnostics over memory; ghosts lie by omission.
+
 ## Search
 
 ```bash
@@ -44,16 +61,58 @@ searx config set browserPath "$(which chromium)"  # if doctor says browser unava
 npx playwright install chromium
 ```
 
-## Human-auth state
+## Browser auth decision tree
 
-If a site presents a CAPTCHA/login challenge, use human-auth state:
+Some engines need a real browser session. Use this flow instead of guessing.
+
+### 1. Check auth state before relying on Google
+
+```bash
+searx doctor --text
+```
+
+Read the browser lines:
+
+- `Browser profile: present` → Google Playwright can usually be used.
+- `Browser profile: absent` → Google may return challenge pages; use DuckDuckGo/Wikipedia unless Google specifically matters.
+- `Browser: unavailable` → set a browser first:
+
+```bash
+searx config set browserPath "$(which chromium)"
+```
+
+### 2. For ordinary web search, avoid auth ceremony
+
+If the task only needs decent general results, do not stop for Google auth. Use:
+
+```bash
+searx search "query" -e "duckduckgo playwright,wikipedia" -n 5 --text
+```
+
+### 3. When Google matters, create/refresh human-auth state
+
+Use this when:
+
+- Willow asks for Google-backed results,
+- `google playwright` returns CAPTCHA/unusual-traffic snippets,
+- `searx doctor --text` warns that the persistent profile is absent,
+- or repeated searches show challenge pages instead of results.
 
 ```bash
 searx browser-auth "https://www.google.com/search?q=test"
 searx render restart
+searx search "playwright browser automation" -e "google playwright" -n 5 --text
 ```
 
-`browser-auth` opens a headed persistent browser profile, waits until the page looks authenticated, then saves storage/profile paths into config. No tmux/Enter dance. The renderer will reuse that profile for later searches.
+`browser-auth` opens a headed persistent browser profile, waits until the page looks authenticated, then saves storage/profile paths into config. If a CAPTCHA or consent screen appears, ask Willow to complete it in the opened browser. Do **not** use CAPTCHA-solving services, stealth bypass libraries, or monkey-patches. Human-auth profile only; the dead have standards.
+
+After auth, verify doctor shows the profile:
+
+```bash
+searx doctor --text | grep -E 'Browser profile|Recommended search'
+```
+
+Expected: `Browser profile: present (...)`. The renderer reuses that profile for later `google playwright` searches.
 
 ## Render server for SearXNG engines
 
