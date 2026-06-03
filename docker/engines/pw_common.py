@@ -149,7 +149,7 @@ def ddg_article_results(rendered_html):
             if ' › ' in label or label.startswith('http') or label.endswith('.com') or label.endswith('.org'):
                 # display URL / site crumb, not a human title
                 continue
-            if len(label) < 8:
+            if len(label) < 8 or len(label) > 180:
                 continue
             external.append((url, label, anchor))
 
