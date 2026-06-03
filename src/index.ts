@@ -250,7 +250,7 @@ export default function searxngExtension(pi: ExtensionAPI) {
                         tui.requestRender();
                     },
                 };
-            }, { overlay: true, overlayOptions: { width: "80%", minWidth: 70, maxHeight: "80%" } });
+            });
 
             if (selected) await runAction(selected, ctx);
         },
