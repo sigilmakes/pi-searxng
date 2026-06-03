@@ -48,7 +48,7 @@ engines:
     - name: brave playwright
       engine: brave_pw
       shortcut: brpw
-      disabled: false
+      disabled: true
       categories:
         - general
         - web
@@ -62,12 +62,16 @@ engines:
     - name: mojeek
       engine: mojeek
       shortcut: mjk
-      disabled: false
+      disabled: true
 
     - name: qwant
       engine: qwant
       shortcut: qw
-      disabled: false
+      disabled: true
+
+    - name: startpage
+      engine: startpage
+      disabled: true
 
     # --- Disable the repeat offenders that just get suspended ---
     - name: google

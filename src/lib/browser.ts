@@ -12,12 +12,12 @@
  */
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import type { Browser, BrowserContextOptions, LaunchOptions } from "playwright-core";
 import { chromium } from "playwright-core";
+import { browserStatePath, resolveBrowserPath } from "./config.js";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -30,23 +30,20 @@ export interface BrowserResult {
     duration_ms: number;
 }
 
-const DEFAULT_STATE = path.join(os.homedir(), ".pi", "agent", "searx-browser-state.json");
 const DEFAULT_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-function statePath(): string {
-    return process.env.SEARX_BROWSER_STATE || DEFAULT_STATE;
+export function getBrowserStatePath(): string {
+    return browserStatePath();
+}
+
+export function getBrowserPath(): string | undefined {
+    return resolveBrowserPath();
 }
 
 function launchOptions(headless = true): LaunchOptions {
-    const opts: LaunchOptions = {
-        headless,
-    };
-
-    const browserPath = process.env.SEARX_BROWSER_PATH;
-    if (browserPath) {
-        opts.executablePath = browserPath;
-    }
-
+    const opts: LaunchOptions = { headless };
+    const browserPath = resolveBrowserPath();
+    if (browserPath) opts.executablePath = browserPath;
     return opts;
 }
 
@@ -56,7 +53,7 @@ function contextOptions(): BrowserContextOptions {
         viewport: { width: 1280, height: 720 },
     };
 
-    const state = statePath();
+    const state = browserStatePath();
     if (fs.existsSync(state)) {
         opts.storageState = state;
     }
@@ -117,7 +114,7 @@ export async function authenticate(
         timeout?: number;
     } = {},
 ): Promise<string> {
-    const savePath = opts.state || statePath();
+    const savePath = opts.state || browserStatePath();
     fs.mkdirSync(path.dirname(savePath), { recursive: true });
 
     const browser = await chromium.launch(launchOptions(false));
