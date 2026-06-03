@@ -58,7 +58,11 @@ export async function runDoctor(): Promise<DoctorResult> {
     const statePresent = fs.existsSync(state);
     const profile = browserProfilePath();
     const profilePresent = fs.existsSync(profile) && fs.readdirSync(profile).length > 0;
-    if (!statePresent && !profilePresent) warnings.push("Browser auth profile/state is absent; Google may challenge. Try: searx browser-auth 'https://www.google.com/search?q=test'");
+    if (!statePresent && !profilePresent) {
+        warnings.push("Browser auth profile/state is absent; Google may challenge. Try: searx browser-auth 'https://www.google.com/search?q=test'");
+    } else if (!profilePresent) {
+        warnings.push("Browser state exists but persistent profile is absent; Google auth may not persist reliably. Re-run: searx browser-auth 'https://www.google.com/search?q=test'");
+    }
 
     let playwright: string[] = [];
     let unresponsive: Array<{ engine: string; reason: string }> = [];
