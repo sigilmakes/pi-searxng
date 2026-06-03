@@ -3,7 +3,7 @@
 
 from urllib.parse import urlencode
 from searx.result_types import EngineResults
-from searx.engines.pw_common import render, generic_h3_results, generic_anchor_results, first_nonempty
+from searx.engines.pw_common import render, ddg_article_results, generic_h3_results, generic_anchor_results, first_nonempty
 
 engine_type = "offline"
 categories = ["general", "web"]
@@ -29,6 +29,7 @@ def search(query, params):
     url = "https://duckduckgo.com/?" + urlencode(qs)
     html = render(url, wait=3, timeout=25)
     return first_nonempty(
+        ddg_article_results(html),
         generic_h3_results(html, ["duckduckgo.com"]),
         generic_anchor_results(html, ["duckduckgo.com"]),
         EngineResults(),

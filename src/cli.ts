@@ -298,6 +298,26 @@ program
         }
     });
 
+// ── browser-auth ─────────────────────────────────────────
+
+program
+    .command("browser-auth")
+    .description("Open a headed browser for human login/CAPTCHA, then save browser state")
+    .argument("<url>", "URL to open")
+    .option("--state <path>", "Storage state path (default: ~/.pi/agent/searx-browser-state.json)")
+    .option("--timeout <number>", "Navigation timeout in seconds", 60)
+    .action(async (url: string, opts: { state?: string; timeout?: number }) => {
+        try {
+            const saved = await browser.authenticate(url, {
+                state: opts.state,
+                timeout: Number(opts.timeout) || 60,
+            });
+            writeOut(`Saved browser state: ${saved}`);
+        } catch (err) {
+            errorOut(err instanceof Error ? err.message : String(err));
+        }
+    });
+
 // ── render-server ────────────────────────────────────────
 
 program
@@ -306,7 +326,7 @@ program
     .option("--port <number>", "Port to listen on", 8118)
     .action(async (opts: { port?: number }) => {
         try {
-            await startServer(opts.port || 8118);
+            await startServer(Number(opts.port) || 8118);
         } catch (err) {
             errorOut(err instanceof Error ? err.message : String(err));
         }
