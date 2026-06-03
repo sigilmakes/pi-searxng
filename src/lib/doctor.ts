@@ -77,6 +77,10 @@ export async function runDoctor(): Promise<DoctorResult> {
         }
     }
 
+    const recommendedEngines = profilePresent
+        ? "google playwright,duckduckgo playwright,wikipedia"
+        : "duckduckgo playwright,wikipedia";
+
     return {
         configPath: CONFIG_PATH,
         config,
@@ -94,7 +98,7 @@ export async function runDoctor(): Promise<DoctorResult> {
         engines: {
             playwright,
             unresponsive,
-            recommended: 'searx search "query" -e "duckduckgo playwright,bing,wikipedia" -n 5 --text',
+            recommended: `searx search "query" -e "${recommendedEngines}" -n 5 --text`,
         },
         warnings,
     };

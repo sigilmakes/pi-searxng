@@ -37,7 +37,6 @@ const DIRECT_COMMANDS = [
     "render stop",
     "render restart",
     "config",
-    "prefill search",
 ];
 
 function ensureDirsOnPath(): string[] {
@@ -162,10 +161,7 @@ async function runAction(action: string, ctx: any): Promise<void> {
         case "config":
             ctx.ui.notify(await cliText(["config", "show"], 30_000), "info");
             break;
-        case "prefill search":
-            ctx.ui.setEditorText?.('searx search "query" -e "duckduckgo playwright,bing,wikipedia" -n 5 --text');
-            ctx.ui.notify("Inserted recommended search command into editor.", "info");
-            break;
+
         default:
             ctx.ui.notify(`Unknown subcommand: ${action}\nUsage: /searxng [${DIRECT_COMMANDS.join("|")}]`, "warning");
     }
@@ -174,7 +170,6 @@ async function runAction(action: string, ctx: any): Promise<void> {
 async function showDashboard(ctx: any): Promise<void> {
     ctx.ui.notify(await statusText(), "info");
     const choice = await select(ctx, "SearXNG", [
-        "prefill search",
         "doctor",
         "status",
         "render status",

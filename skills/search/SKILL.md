@@ -63,14 +63,14 @@ Playwright-backed SearXNG engines call a host render server:
 searx render start
 searx render status
 searx restart
-searx search "rust async" -e "duckduckgo playwright" --text
+searx search "rust async" -e "google playwright,duckduckgo playwright,wikipedia" --text
 ```
 
 Current browser engines:
 
 - `duckduckgo playwright` — working and recommended for browser-rendered general search
 - `brave playwright` — partial; useful but can be sparse
-- `google playwright` — requires human-auth state if Google challenges the session
+- `google playwright` — enabled; works best after `searx browser-auth` creates a persistent profile
 
 ## Service Management
 

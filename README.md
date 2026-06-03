@@ -69,7 +69,7 @@ The Docker config mounts custom offline engines:
 
 - `duckduckgo playwright` — works; browser-rendered DDG general search
 - `brave playwright` — partial; Brave rendering works but results can be sparse
-- `google playwright` — requires human-auth state when Google presents CAPTCHA
+- `google playwright` — enabled; works best after `searx browser-auth` creates a persistent profile
 
 The engines call the host render server at `http://host.docker.internal:8118/render`. The extension auto-starts it when `autoStartRenderServer` is true. Manual lifecycle:
 
@@ -77,7 +77,7 @@ The engines call the host render server at `http://host.docker.internal:8118/ren
 searx render start
 searx render status
 searx restart
-searx search "rust async" -e "duckduckgo playwright" --text
+searx search "rust async" -e "google playwright,duckduckgo playwright,wikipedia" --text
 ```
 
 ## Pi extension
