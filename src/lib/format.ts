@@ -16,11 +16,18 @@ export function searchText(out: SearchOutput): string {
 	lines.push(`Search: "${out.query}" — ${out.returned} results`);
 
 	const unresponsive = out.unresponsive || [];
-	if (unresponsive.length > 0 && out.results.length === 0) {
-		lines.push(
-			`\n⚠ All engines unresponsive: ${unresponsive.map((e) => e.engine).join(", ")}`,
-		);
-		lines.push("Try: searx restart");
+	if (out.results.length === 0) {
+		if (unresponsive.length > 0) {
+			lines.push(
+				`\n⚠ All engines unresponsive: ${unresponsive.map((e) => e.engine).join(", ")}`,
+			);
+			lines.push("Try: searx restart");
+		} else {
+			lines.push(
+				"\nNo results. If using Playwright engines, they may need browser auth.",
+			);
+			lines.push("Try: searx browser-auth \"https://www.google.com/search?q=test\"");
+		}
 		return lines.join("\n");
 	}
 
