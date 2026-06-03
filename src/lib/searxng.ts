@@ -215,7 +215,7 @@ export async function listEngines(): Promise<ConfigOutput> {
 
 export async function fetchPage(
 	url: string,
-	maxChars = 5000,
+	maxChars = 15000,
 	offset = 0,
 ): Promise<FetchOutput> {
 	let stdout: string;

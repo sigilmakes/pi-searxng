@@ -83,7 +83,7 @@ program
     .command("fetch")
     .description("Fetch a URL — browser rendering for JS pages, markitdown for static content")
     .argument("<url>", "URL to fetch")
-    .option("-n, --max-chars <number>", "Max characters", 5000)
+    .option("-n, --max-chars <number>", "Max characters", 15000)
     .option("-o, --offset <number>", "Character offset for pagination", 0)
     .option("--browser", "Force browser rendering")
     .option("--no-browser", "Skip browser, use markitdown only")
@@ -91,7 +91,7 @@ program
     .action(async (url: string, opts: OutputFlags & { maxChars?: number; offset?: number; browser?: boolean; noBrowser?: boolean }) => {
         try {
             const result = await fetchUrl(url, {
-                maxChars: Number(opts.maxChars) || 5000,
+                maxChars: Number(opts.maxChars) || 15000,
                 offset: Number(opts.offset) || 0,
                 forceBrowser: opts.browser,
                 noBrowser: opts.noBrowser,

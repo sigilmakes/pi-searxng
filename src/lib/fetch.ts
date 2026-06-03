@@ -25,7 +25,7 @@ export async function fetchUrl(
 	url: string,
 	opts: FetchOptions = {},
 ): Promise<FetchOutput & { rendered: boolean }> {
-	const maxChars = Number(opts.maxChars) || 5000;
+	const maxChars = Number(opts.maxChars) || 15000;
 	const offset = Number(opts.offset) || 0;
 
 	// Force browser mode
