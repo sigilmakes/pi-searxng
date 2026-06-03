@@ -2,5 +2,6 @@ node_modules/
 dist/
 *.js
 *.d.ts
-*.js.mapscratchpad
+*.js.map
 .playwright-cli/
+scratchpad

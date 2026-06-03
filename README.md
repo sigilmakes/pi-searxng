@@ -26,8 +26,12 @@ searx fetch "$URL" -n 3000 -o 3000       # paginate long documents
 searx browse "https://example.com" --text
 searx browse "https://example.com" --extract "h1,h2"
 
+searx doctor
+searx config show
+searx config set browserPath "$(which chromium)"
 searx browser-auth "https://www.google.com/search?q=test"
-searx render-server --port 8118
+searx render start / status / restart / stop
+searx render-server --port 8118          # foreground debug mode
 
 searx status --text
 searx start / stop / restart
@@ -54,10 +58,10 @@ Human-auth storage:
 
 ```bash
 searx browser-auth "https://www.google.com/search?q=test"
-export SEARX_BROWSER_STATE=~/.pi/agent/searx-browser-state.json
+searx render restart
 ```
 
-`browser-auth` opens a headed browser. You solve/login manually, press Enter in the terminal, and the CLI saves storage state for later renders. The package does not use CAPTCHA-solving services or stealth bypass libraries.
+`browser-auth` opens a headed persistent browser profile, watches until the page looks authenticated, then saves both storage state and profile paths into `~/.pi/agent/searxng/config.json`. No tmux, no press-enter ceremony. The package does not use CAPTCHA-solving services or stealth bypass libraries.
 
 ## Playwright-backed SearXNG engines
 
@@ -67,11 +71,11 @@ The Docker config mounts custom offline engines:
 - `brave playwright` — partial; Brave rendering works but results can be sparse
 - `google playwright` — requires human-auth state when Google presents CAPTCHA
 
-The engines call the host render server at `http://host.docker.internal:8118/render`. Start it before using the Playwright engines:
+The engines call the host render server at `http://host.docker.internal:8118/render`. The extension auto-starts it when `autoStartRenderServer` is true. Manual lifecycle:
 
 ```bash
-export SEARX_BROWSER_PATH=$(which chromium)   # if needed
-searx render-server --port 8118
+searx render start
+searx render status
 searx restart
 searx search "rust async" -e "duckduckgo playwright" --text
 ```
@@ -85,6 +89,7 @@ On session start it:
 1. Adds the package `bin/` and `node_modules/.bin/` to PATH
 2. Symlinks `searx` into `~/.pi/agent/bin/`
 3. Starts SearXNG if it is not already running
+4. Starts the render server if configured
 
 ## Requirements
 

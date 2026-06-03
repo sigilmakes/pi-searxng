@@ -7,6 +7,7 @@ import path from "node:path";
 export interface SearxConfig {
     browserPath?: string;
     browserState?: string;
+    browserProfile?: string;
     renderPort: number;
     autoStartRenderServer: boolean;
 }
@@ -14,6 +15,7 @@ export interface SearxConfig {
 export const CONFIG_DIR = path.join(os.homedir(), ".pi", "agent", "searxng");
 export const CONFIG_PATH = path.join(CONFIG_DIR, "config.json");
 export const DEFAULT_BROWSER_STATE = path.join(os.homedir(), ".pi", "agent", "searx-browser-state.json");
+export const DEFAULT_BROWSER_PROFILE = path.join(os.homedir(), ".pi", "agent", "searx-browser-profile");
 export const DEFAULT_RENDER_PORT = 8118;
 
 export const DEFAULT_CONFIG: SearxConfig = {
@@ -56,6 +58,9 @@ export function setConfigValue(key: keyof SearxConfig, value: string): SearxConf
         case "browserState":
             config.browserState = value;
             break;
+        case "browserProfile":
+            config.browserProfile = value;
+            break;
         default:
             throw new Error(`Unknown config key: ${String(key)}`);
     }
@@ -65,6 +70,10 @@ export function setConfigValue(key: keyof SearxConfig, value: string): SearxConf
 
 export function browserStatePath(): string {
     return process.env.SEARX_BROWSER_STATE || loadConfig().browserState || DEFAULT_BROWSER_STATE;
+}
+
+export function browserProfilePath(): string {
+    return process.env.SEARX_BROWSER_PROFILE || loadConfig().browserProfile || DEFAULT_BROWSER_PROFILE;
 }
 
 export function renderPort(): number {

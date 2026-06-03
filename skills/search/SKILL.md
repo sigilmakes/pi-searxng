@@ -35,32 +35,33 @@ searx browse "https://example.com" --text         # browser-render visible text
 searx browse "https://example.com" --extract "h1,h2"
 ```
 
-Browser rendering uses `playwright-core` directly. If Playwright cannot launch a browser:
+Browser rendering uses `playwright-core` directly. First run:
 
 ```bash
-export SEARX_BROWSER_PATH=$(which chromium)
+searx doctor
+searx config set browserPath "$(which chromium)"  # if doctor says browser unavailable
 # or install Playwright's browser on conventional systems:
 npx playwright install chromium
 ```
 
 ## Human-auth state
 
-If a site presents a CAPTCHA/login challenge, do not automate a solver. Use human-auth state:
+If a site presents a CAPTCHA/login challenge, use human-auth state:
 
 ```bash
 searx browser-auth "https://www.google.com/search?q=test"
-export SEARX_BROWSER_STATE=~/.pi/agent/searx-browser-state.json
+searx render restart
 ```
 
-`browser-auth` opens a headed browser. Willow solves/logs in manually, presses Enter, and the CLI saves cookies/storage for later renders.
+`browser-auth` opens a headed persistent browser profile, waits until the page looks authenticated, then saves storage/profile paths into config. No tmux/Enter dance. The renderer will reuse that profile for later searches.
 
 ## Render server for SearXNG engines
 
 Playwright-backed SearXNG engines call a host render server:
 
 ```bash
-export SEARX_BROWSER_PATH=$(which chromium)   # if needed
-searx render-server --port 8118
+searx render start
+searx render status
 searx restart
 searx search "rust async" -e "duckduckgo playwright" --text
 ```
@@ -74,10 +75,13 @@ Current browser engines:
 ## Service Management
 
 ```bash
+searx doctor --text
 searx status --text
 searx start
 searx stop
 searx restart
+searx render status
+searx render restart
 searx engines --text
 ```
 

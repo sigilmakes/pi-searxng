@@ -1,7 +1,7 @@
 /**
  * SearXNG extension for pi.
  *
- * Thin harness: `/searxng` command plus session-start lifecycle.
+ * Thin harness: `/searxng` TUI command plus session-start lifecycle.
  * Search/fetch happen through the `searx` CLI.
  */
 
@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import { loadConfig } from "./lib/config.js";
 import * as render from "./lib/render.js";
 
@@ -22,23 +23,92 @@ const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const COMPOSE_FILE = path.join(PACKAGE_ROOT, "docker", "docker-compose.yaml");
 const BIN_DIR = path.join(PACKAGE_ROOT, "bin");
 const NM_BIN_DIR = path.join(PACKAGE_ROOT, "node_modules", ".bin");
+const SEARX_BIN = path.join(BIN_DIR, "searx");
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8042";
+
+interface MenuItem {
+    value: string;
+    label: string;
+    description: string;
+}
+
+const MENU_ITEMS: MenuItem[] = [
+    { value: "status", label: "Status", description: "Show SearXNG + render server health" },
+    { value: "doctor", label: "Doctor", description: "Full diagnostic report" },
+    { value: "start", label: "Start SearXNG", description: "docker compose up -d" },
+    { value: "restart", label: "Restart SearXNG", description: "Clear suspensions / reload config" },
+    { value: "render status", label: "Render status", description: "Browser render daemon health" },
+    { value: "render start", label: "Start render", description: "Start browser render daemon" },
+    { value: "render restart", label: "Restart render", description: "Reload browser state/config" },
+    { value: "engines", label: "Engines", description: "List enabled engines" },
+    { value: "stop", label: "Stop SearXNG", description: "docker compose down" },
+];
+
+class SearxngMenu {
+    private selected = 0;
+    private cachedWidth?: number;
+    private cachedLines?: string[];
+
+    constructor(
+        private theme: any,
+        private done: (value: string | null) => void,
+    ) {}
+
+    render(width: number): string[] {
+        if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+        const lines: string[] = [];
+        const accent = (s: string) => this.theme.fg("accent", s);
+        const muted = (s: string) => this.theme.fg("muted", s);
+        const selected = (s: string) => this.theme.fg("accent", this.theme.bg("selectedBg", s));
+
+        lines.push(accent("╭─ SearXNG ─────────────────────────────────────────╮"));
+        lines.push(`  ${muted("Search CLI:")} searx search "query" -e "duckduckgo playwright,bing,wikipedia"`);
+        lines.push(`  ${muted("Navigate:")} ↑↓  ${muted("Select:")} enter  ${muted("Close:")} esc`);
+        lines.push("");
+
+        for (let i = 0; i < MENU_ITEMS.length; i++) {
+            const item = MENU_ITEMS[i];
+            const prefix = i === this.selected ? "› " : "  ";
+            const row = `${prefix}${item.label.padEnd(16)} ${item.description}`;
+            lines.push(i === this.selected ? selected(truncateToWidth(row, width)) : truncateToWidth(row, width));
+        }
+
+        lines.push(accent("╰──────────────────────────────────────────────────╯"));
+        this.cachedWidth = width;
+        this.cachedLines = lines.map((line) => truncateToWidth(line, width));
+        return this.cachedLines;
+    }
+
+    handleInput(data: string): void {
+        if (matchesKey(data, Key.up)) {
+            this.selected = Math.max(0, this.selected - 1);
+            this.invalidate();
+        } else if (matchesKey(data, Key.down)) {
+            this.selected = Math.min(MENU_ITEMS.length - 1, this.selected + 1);
+            this.invalidate();
+        } else if (matchesKey(data, Key.enter)) {
+            this.done(MENU_ITEMS[this.selected].value);
+        } else if (matchesKey(data, Key.escape)) {
+            this.done(null);
+        }
+    }
+
+    invalidate(): void {
+        this.cachedWidth = undefined;
+        this.cachedLines = undefined;
+    }
+}
 
 function ensureDirsOnPath(): string[] {
     const currentPath = process.env.PATH || "";
     const paths = currentPath.split(path.delimiter);
     const added: string[] = [];
-
-    for (const dir of [NM_BIN_DIR, BIN_DIR]) {
-        if (!paths.includes(dir)) added.push(dir);
-    }
-
+    for (const dir of [NM_BIN_DIR, BIN_DIR]) if (!paths.includes(dir)) added.push(dir);
     if (added.length > 0) process.env.PATH = `${added.join(path.delimiter)}${path.delimiter}${currentPath}`;
     return added;
 }
 
 const AGENT_BIN = path.join(os.homedir(), ".pi", "agent", "bin");
-const SEARX_BIN = path.join(BIN_DIR, "searx");
 const SEARX_LINK = path.join(AGENT_BIN, "searx");
 
 function ensureSymlink(): void {
@@ -85,6 +155,63 @@ async function startSearxng(): Promise<boolean> {
     }
 }
 
+async function cliText(args: string[], timeout = 30_000): Promise<string> {
+    const { stdout, stderr } = await execFileAsync(SEARX_BIN, args, { timeout });
+    return stdout.trim() || stderr.trim();
+}
+
+async function runAction(action: string, ctx: any): Promise<void> {
+    switch (action) {
+        case "status": {
+            const healthy = await isHealthy();
+            const r = await render.status();
+            ctx.ui.notify(`SearXNG: ${healthy ? "running" : "not responding"}\nURL: ${SEARXNG_URL}\nRender: ${r.healthy ? "healthy" : r.running ? "running but unhealthy" : "stopped"} (${r.url})`, "info");
+            break;
+        }
+        case "doctor": {
+            ctx.ui.notify(await cliText(["doctor", "--text"], 60_000), "info");
+            break;
+        }
+        case "start": {
+            ctx.ui.notify("Starting SearXNG...", "info");
+            const ok = await startSearxng();
+            ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Check Docker.", ok ? "info" : "error");
+            break;
+        }
+        case "stop": {
+            ctx.ui.notify("Stopping SearXNG...", "info");
+            await dockerCompose("down");
+            ctx.ui.notify("SearXNG stopped.", "info");
+            break;
+        }
+        case "restart": {
+            ctx.ui.notify("Restarting SearXNG...", "info");
+            await dockerCompose("restart");
+            const ok = await waitForHealthy(15);
+            ctx.ui.notify(ok ? "SearXNG restarted." : "Restarted but not yet responding.", ok ? "info" : "warning");
+            break;
+        }
+        case "render status":
+        case "render start":
+        case "render restart":
+        case "render stop": {
+            const [, sub = "status"] = action.split(" ");
+            const status = sub === "start" ? await render.start()
+                : sub === "restart" ? await render.restart()
+                : sub === "stop" ? await render.stop()
+                : await render.status();
+            ctx.ui.notify(`Render: ${status.healthy ? "healthy" : status.running ? "running but unhealthy" : "stopped"}\nURL: ${status.url}\nLog: ${status.logFile}`, "info");
+            break;
+        }
+        case "engines": {
+            ctx.ui.notify(await cliText(["engines", "--text"], 30_000), "info");
+            break;
+        }
+        default:
+            ctx.ui.notify(`Unknown subcommand: ${action}\nUsage: /searxng [status|doctor|start|stop|restart|engines|render status|render start|render restart]`, "warning");
+    }
+}
+
 export default function searxngExtension(pi: ExtensionAPI) {
     const added = ensureDirsOnPath();
     ensureSymlink();
@@ -98,80 +225,34 @@ export default function searxngExtension(pi: ExtensionAPI) {
             ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.", ok ? "info" : "warning");
         }
 
-        const config = loadConfig();
-        if (config.autoStartRenderServer) {
+        if (loadConfig().autoStartRenderServer) {
             const status = await render.start();
-            if (!status.healthy) {
-                ctx.ui.notify("Render server not healthy. Run: searx doctor", "warning");
-            }
+            if (!status.healthy) ctx.ui.notify("Render server not healthy. Run: searx doctor", "warning");
         }
     });
 
     pi.registerCommand("searxng", {
-        description: "Manage SearXNG: status, start, stop, restart, engines, render, doctor",
+        description: "Open SearXNG TUI, or run: status, doctor, start, stop, restart, engines, render <action>",
         async handler(args, ctx) {
-            const parts = (args.trim() || "status").split(/\s+/);
-            const sub = parts[0].toLowerCase();
-
-            switch (sub) {
-                case "status": {
-                    const healthy = await isHealthy();
-                    const r = await render.status();
-                    let text = `SearXNG: ${healthy ? "running" : "not responding"}\nURL: ${SEARXNG_URL}`;
-                    text += `\nRender: ${r.healthy ? "healthy" : r.running ? "running but unhealthy" : "stopped"} (${r.url})`;
-                    ctx.ui.notify(text, "info");
-                    break;
-                }
-                case "start": {
-                    ctx.ui.notify("Starting SearXNG...", "info");
-                    const ok = await startSearxng();
-                    ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Check Docker.", ok ? "info" : "error");
-                    break;
-                }
-                case "stop": {
-                    ctx.ui.notify("Stopping SearXNG...", "info");
-                    await dockerCompose("down");
-                    ctx.ui.notify("SearXNG stopped.", "info");
-                    break;
-                }
-                case "restart": {
-                    ctx.ui.notify("Restarting SearXNG...", "info");
-                    await dockerCompose("restart");
-                    const ok = await waitForHealthy(15);
-                    ctx.ui.notify(ok ? "SearXNG restarted." : "Restarted but not yet responding.", ok ? "info" : "warning");
-                    break;
-                }
-                case "render": {
-                    const action = (parts[1] || "status").toLowerCase();
-                    const status = action === "start" ? await render.start()
-                        : action === "stop" ? await render.stop()
-                        : action === "restart" ? await render.restart()
-                        : await render.status();
-                    ctx.ui.notify(`Render: ${status.healthy ? "healthy" : status.running ? "running but unhealthy" : "stopped"}\nURL: ${status.url}\nLog: ${status.logFile}`, "info");
-                    break;
-                }
-                case "doctor": {
-                    ctx.ui.notify("Run `searx doctor` in bash for full diagnostics.", "info");
-                    break;
-                }
-                case "engines": {
-                    if (!(await isHealthy())) {
-                        ctx.ui.notify("SearXNG is not running. Use /searxng start first.", "warning");
-                        break;
-                    }
-                    const resp = await fetch(`${SEARXNG_URL}/config`, { signal: AbortSignal.timeout(5000) });
-                    const config = (await resp.json()) as { engines: Array<{ name: string; enabled: boolean; categories: string[] }>; categories: string[] };
-                    const enabled = config.engines.filter((e) => e.enabled);
-                    const byCategory = new Map<string, string[]>();
-                    for (const e of enabled) for (const c of e.categories) byCategory.set(c, [...(byCategory.get(c) || []), e.name]);
-                    const lines = [`${enabled.length} engines enabled, ${config.engines.length - enabled.length} disabled`, `Categories: ${config.categories.join(", ")}`, ""];
-                    for (const [cat, engines] of [...byCategory].sort((a, b) => a[0].localeCompare(b[0]))) lines.push(`  ${cat}: ${engines.join(", ")}`);
-                    ctx.ui.notify(lines.join("\n"), "info");
-                    break;
-                }
-                default:
-                    ctx.ui.notify(`Unknown subcommand: ${sub}\nUsage: /searxng [status|start|stop|restart|engines|render|doctor]`, "warning");
+            const action = args.trim();
+            if (action) {
+                await runAction(action, ctx);
+                return;
             }
+
+            const selected = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
+                const menu = new SearxngMenu(theme, done);
+                return {
+                    render: (width: number) => menu.render(width),
+                    invalidate: () => menu.invalidate(),
+                    handleInput: (data: string) => {
+                        menu.handleInput(data);
+                        tui.requestRender();
+                    },
+                };
+            }, { overlay: true, overlayOptions: { width: "80%", minWidth: 70, maxHeight: "80%" } });
+
+            if (selected) await runAction(selected, ctx);
         },
     });
 }

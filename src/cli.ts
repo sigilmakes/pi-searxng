@@ -171,6 +171,7 @@ configCmd
             `Config: ${cfg.CONFIG_PATH}`,
             `browserPath: ${config.browserPath || "(auto)"}`,
             `browserState: ${config.browserState || cfg.DEFAULT_BROWSER_STATE}`,
+            `browserProfile: ${config.browserProfile || cfg.DEFAULT_BROWSER_PROFILE}`,
             `renderPort: ${config.renderPort}`,
             `autoStartRenderServer: ${config.autoStartRenderServer}`,
         ].join("\n"));
@@ -179,7 +180,7 @@ configCmd
 configCmd
     .command("set")
     .description("Set a config value")
-    .argument("<key>", "browserPath|browserState|renderPort|autoStartRenderServer")
+    .argument("<key>", "browserPath|browserState|browserProfile|renderPort|autoStartRenderServer")
     .argument("<value>", "value")
     .action((key: keyof cfg.SearxConfig, value: string) => {
         try {
@@ -197,15 +198,23 @@ program
     .description("Open a headed browser for human login/CAPTCHA, then save browser state")
     .argument("<url>", "URL to open")
     .option("--state <path>", "Storage state path")
-    .option("--timeout <number>", "Navigation timeout in seconds", 60)
-    .action(async (url: string, opts: { state?: string; timeout?: number }) => {
+    .option("--profile <path>", "Persistent browser profile path")
+    .option("--timeout <number>", "Max seconds to wait for auth detection", 300)
+    .action(async (url: string, opts: { state?: string; profile?: string; timeout?: number }) => {
         try {
             const saved = await browser.authenticate(url, {
                 state: opts.state,
-                timeout: Number(opts.timeout) || 60,
+                profile: opts.profile,
+                timeout: Number(opts.timeout) || 300,
             });
-            writeOut(`Saved browser state: ${saved}`);
-            if (!opts.state) cfg.setConfigValue("browserState", saved);
+            cfg.setConfigValue("browserState", saved.state);
+            cfg.setConfigValue("browserProfile", saved.profile);
+            writeOut([
+                saved.detected ? "Auth detected and saved." : "Timed out waiting for auth detection; saved current browser state anyway.",
+                `State: ${saved.state}`,
+                `Profile: ${saved.profile}`,
+                "Restart render server to use new profile: searx render restart",
+            ].join("\n"));
         } catch (err) {
             errorOut(err instanceof Error ? err.message : String(err));
         }

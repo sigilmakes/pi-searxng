@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import * as searxng from "./searxng.js";
 import * as render from "./render.js";
 import * as browser from "./browser.js";
-import { CONFIG_PATH, browserStatePath, loadConfig, resolveBrowserPath } from "./config.js";
+import { CONFIG_PATH, browserProfilePath, browserStatePath, loadConfig, resolveBrowserPath } from "./config.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,6 +21,8 @@ export interface DoctorResult {
         available: boolean;
         statePath: string;
         statePresent: boolean;
+        profilePath: string;
+        profilePresent: boolean;
     };
     engines: {
         playwright: string[];
@@ -54,7 +56,9 @@ export async function runDoctor(): Promise<DoctorResult> {
 
     const state = browserStatePath();
     const statePresent = fs.existsSync(state);
-    if (!statePresent) warnings.push("Browser auth state is absent; Google may challenge. Try: searx browser-auth 'https://www.google.com/search?q=test'");
+    const profile = browserProfilePath();
+    const profilePresent = fs.existsSync(profile) && fs.readdirSync(profile).length > 0;
+    if (!statePresent && !profilePresent) warnings.push("Browser auth profile/state is absent; Google may challenge. Try: searx browser-auth 'https://www.google.com/search?q=test'");
 
     let playwright: string[] = [];
     let unresponsive: Array<{ engine: string; reason: string }> = [];
@@ -80,6 +84,8 @@ export async function runDoctor(): Promise<DoctorResult> {
             available: browserAvailable,
             statePath: state,
             statePresent,
+            profilePath: profile,
+            profilePresent,
         },
         engines: {
             playwright,
@@ -100,6 +106,7 @@ export function doctorText(result: DoctorResult): string {
     if (result.renderServer.pid) lines.push(`Render PID: ${result.renderServer.pid}`);
     lines.push(`Browser: ${result.browser.available ? "available" : "unavailable"}${result.browser.path ? ` (${result.browser.path})` : ""}`);
     lines.push(`Browser state: ${result.browser.statePresent ? "present" : "absent"} (${result.browser.statePath})`);
+    lines.push(`Browser profile: ${result.browser.profilePresent ? "present" : "absent"} (${result.browser.profilePath})`);
     lines.push(`Playwright engines: ${result.engines.playwright.length ? result.engines.playwright.join(", ") : "none enabled"}`);
     lines.push(`Recommended search: ${result.engines.recommended}`);
 

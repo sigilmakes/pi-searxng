@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadConfig, renderPort, renderUrl, resolveBrowserPath, browserStatePath } from "./config.js";
+import { loadConfig, renderPort, renderUrl, resolveBrowserPath, browserStatePath, browserProfilePath } from "./config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..", "..");
@@ -79,7 +79,8 @@ export async function start(): Promise<RenderStatus> {
         ...process.env,
         SEARX_RENDER_PORT: String(port),
         ...(resolveBrowserPath() ? { SEARX_BROWSER_PATH: resolveBrowserPath() as string } : {}),
-        ...(config.browserState || process.env.SEARX_BROWSER_STATE ? { SEARX_BROWSER_STATE: browserStatePath() } : {}),
+        SEARX_BROWSER_STATE: browserStatePath(),
+        SEARX_BROWSER_PROFILE: browserProfilePath(),
     };
 
     const child = spawn(BIN, ["render-server", "--port", String(port)], {
