@@ -33,6 +33,25 @@ export function getBrowserPath(): string | undefined {
     return resolveBrowserPath();
 }
 
+import { execFileSync } from "node:child_process";
+
+let _resolvedUA: string | null | undefined;
+
+/** Build a user-agent matching the actual Chromium binary, or undefined to let the browser decide. */
+function resolveUA(): string | undefined {
+    if (_resolvedUA !== undefined) return _resolvedUA ?? undefined;
+    const browserPath = resolveBrowserPath();
+    if (!browserPath) { _resolvedUA = null; return undefined; }
+    try {
+        const version = execFileSync(browserPath, ["--version"], { timeout: 5000 }).toString().trim();
+        const match = version.match(/(\d+\.\d+\.\d+\.\d+)/);
+        _resolvedUA = match ? `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${match[1]} Safari/537.36` : null;
+    } catch {
+        _resolvedUA = null;
+    }
+    return _resolvedUA ?? undefined;
+}
+
 function launchOptions(headless = true): LaunchOptions {
     const opts: LaunchOptions = {
         headless,
@@ -46,9 +65,12 @@ function launchOptions(headless = true): LaunchOptions {
 }
 
 function baseContextOptions(): BrowserContextOptions {
-    return {
+    const opts: BrowserContextOptions = {
         viewport: { width: 1280, height: 720 },
     };
+    const ua = resolveUA();
+    if (ua) opts.userAgent = ua;
+    return opts;
 }
 
 function stateContextOptions(): BrowserContextOptions {
