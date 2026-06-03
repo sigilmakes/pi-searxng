@@ -20,7 +20,6 @@ export interface BrowserResult {
     duration_ms: number;
 }
 
-const DEFAULT_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 export function getBrowserStatePath(): string {
     return browserStatePath();
@@ -35,7 +34,12 @@ export function getBrowserPath(): string | undefined {
 }
 
 function launchOptions(headless = true): LaunchOptions {
-    const opts: LaunchOptions = { headless };
+    const opts: LaunchOptions = {
+        headless,
+        args: [
+            "--disable-blink-features=AutomationControlled",
+        ],
+    };
     const browserPath = resolveBrowserPath();
     if (browserPath) opts.executablePath = browserPath;
     return opts;
@@ -43,7 +47,6 @@ function launchOptions(headless = true): LaunchOptions {
 
 function baseContextOptions(): BrowserContextOptions {
     return {
-        userAgent: DEFAULT_UA,
         viewport: { width: 1280, height: 720 },
     };
 }
