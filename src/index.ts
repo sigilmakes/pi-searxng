@@ -205,7 +205,7 @@ export default function searxngExtension(pi: ExtensionAPI) {
     });
 
     pi.registerCommand("searxng", {
-        description: "SearXNG dashboard / status / doctor / render / search prefill",
+        description: "SearXNG dashboard / status / doctor / render lifecycle",
         getArgumentCompletions: async (prefix: string) => DIRECT_COMMANDS
             .filter((value) => value.startsWith(prefix))
             .map((value) => ({ value, label: value })),

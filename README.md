@@ -10,6 +10,12 @@ pi install git:github.com/sigilmakes/pi-searxng
 
 The extension symlinks `searx` into `~/.pi/agent/bin/` on session start so it is available from bash.
 
+## Docs
+
+- `docs/architecture.md` — component map and search/render data flow
+- `docs/runtime.md` — service URLs, config paths, browser auth state, logs
+- `docs/development.md` — update loop, smoke tests, editing conventions
+
 ## CLI
 
 ```bash
@@ -82,7 +88,7 @@ searx search "rust async" -e "google playwright,duckduckgo playwright,wikipedia"
 
 ## Pi extension
 
-`/searxng` supports: `status`, `start`, `stop`, `restart`, `engines`.
+`/searxng` supports: `doctor`, `status`, `start`, `stop`, `restart`, `engines`, `config`, and `render ...` lifecycle commands.
 
 On session start it:
 
