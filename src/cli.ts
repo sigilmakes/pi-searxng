@@ -9,7 +9,7 @@ import * as browser from "./lib/browser.js";
 import * as render from "./lib/render.js";
 import * as cfg from "./lib/config.js";
 import { runDoctor, doctorText } from "./lib/doctor.js";
-import { fetchUrl } from "./lib/fetch.js";
+import { fetchUrl, type FetchResult } from "./lib/fetch.js";
 import * as fmt from "./lib/format.js";
 import { startServer } from "./render-server.js";
 import type { StatusOutput } from "./lib/format.js";
@@ -93,12 +93,13 @@ program
             const result = await fetchUrl(url, {
                 maxChars: Number(opts.maxChars) || 15000,
                 offset: Number(opts.offset) || 0,
-                forceBrowser: opts.browser,
-                noBrowser: opts.noBrowser,
+                forceBrowser: opts.browser === true,
+                noBrowser: opts.browser === false,
             });
             writeOut(opts.text ? fmt.fetchText(result) : fmt.fetchJSON(result));
         } catch (err) {
-            errorOut(err instanceof Error ? err.message : String(err));
+            const msg = err instanceof Error ? err.message : String(err);
+            errorOut(msg);
         }
     });
 

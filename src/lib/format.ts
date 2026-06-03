@@ -63,7 +63,7 @@ export function searchText(out: SearchOutput): string {
 
 // ── Fetch ──────────────────────────────────────────────────
 
-export function fetchJSON(out: FetchOutput): string {
+export function fetchJSON(out: FetchOutput & { method?: string }): string {
 	return JSON.stringify(out, null, 2);
 }
 
