@@ -47,5 +47,6 @@ searx doctor --text
 - `docs/browser-auth.md` — auth/profile workflow
 - `docs/composition.md` — pipelines and fetch/browse
 - `docs/render.md` — render server and Playwright engines
+- `docs/api.md` — direct SearXNG/render HTTP API calls
 
 `/searxng` is for status/lifecycle only; search/fetch happens through `searx`.
