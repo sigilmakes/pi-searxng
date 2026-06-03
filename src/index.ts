@@ -190,8 +190,6 @@ export default function searxngExtension(pi: ExtensionAPI) {
     ensureSymlink();
 
     pi.on("session_start", async (_event, ctx) => {
-        if (added.length > 0) ctx.ui.notify(`searx CLI on PATH: ${added.join(", ")}`, "info");
-
         if (!(await isHealthy())) {
             ctx.ui.notify("Starting SearXNG...", "info");
             const ok = await startSearxng();
