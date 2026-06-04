@@ -54,11 +54,18 @@ const SEARX_LINK = path.join(AGENT_BIN, "searx");
 function ensureSymlink(): void {
     try {
         fs.mkdirSync(AGENT_BIN, { recursive: true });
-        if (fs.existsSync(SEARX_LINK)) {
+
+        try {
+            const stat = fs.lstatSync(SEARX_LINK);
+            if (!stat.isSymbolicLink()) return;
+
             const current = fs.readlinkSync(SEARX_LINK);
             if (current === SEARX_BIN) return;
             fs.unlinkSync(SEARX_LINK);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") return;
         }
+
         fs.symlinkSync(SEARX_BIN, SEARX_LINK);
     } catch {
         // Best-effort. PATH setup still handles the current pi process.
@@ -185,21 +192,35 @@ async function showDashboard(ctx: any): Promise<void> {
     await runAction(choice, ctx);
 }
 
+function notify(ctx: any, message: string, level: "info" | "warning" | "error"): void {
+    if (ctx.hasUI === false) return;
+    ctx.ui.notify(message, level);
+}
+
+async function runStartup(ctx: any): Promise<void> {
+    if (!(await isHealthy())) {
+        notify(ctx, "Starting SearXNG...", "info");
+        const ok = await startSearxng();
+        notify(ctx, ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.", ok ? "info" : "warning");
+    }
+
+    if (loadConfig().autoStartRenderServer) {
+        const status = await render.start();
+        if (!status.healthy) notify(ctx, "Render server not healthy. Run: searx doctor", "warning");
+    }
+}
+
 export default function searxngExtension(pi: ExtensionAPI) {
-    const added = ensureDirsOnPath();
+    ensureDirsOnPath();
     ensureSymlink();
 
-    pi.on("session_start", async (_event, ctx) => {
-        if (!(await isHealthy())) {
-            ctx.ui.notify("Starting SearXNG...", "info");
-            const ok = await startSearxng();
-            ctx.ui.notify(ok ? "SearXNG started." : "Failed to start SearXNG. Use /searxng start.", ok ? "info" : "warning");
-        }
+    pi.on("session_start", (_event, ctx) => {
+        if (ctx.hasUI === false) return;
 
-        if (loadConfig().autoStartRenderServer) {
-            const status = await render.start();
-            if (!status.healthy) ctx.ui.notify("Render server not healthy. Run: searx doctor", "warning");
-        }
+        void runStartup(ctx).catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            notify(ctx, `SearXNG startup check failed: ${message}`, "warning");
+        });
     });
 
     pi.registerCommand("searxng", {
