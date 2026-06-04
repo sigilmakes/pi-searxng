@@ -18,7 +18,7 @@ Config lives at:
 
 Important fields:
 
-- `browserPath` — explicit Chromium/Chrome binary path.
+- `browserPath` — optional explicit Chromium/Chrome binary path; when unset, pi-searxng uses bundled Playwright Chromium.
 - `browserState` — Playwright storage state JSON path.
 - `browserProfile` — persistent browser profile directory.
 - `renderPort` — render server port, default `8118`.
@@ -28,7 +28,7 @@ Use CLI commands instead of hand-editing when possible:
 
 ```bash
 searx config show
-searx config set browserPath "$(which chromium)"
+searx config set browserPath "$(which chromium)"  # optional override
 searx config set autoStartRenderServer true
 ```
 

@@ -40,6 +40,12 @@ function asBool(value: unknown): boolean {
     return value === true || value === "true" || value === "1" || value === "yes";
 }
 
+function parseNumber(value: string): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) throw new Error(`Expected a number, got: ${value}`);
+    return parsed;
+}
+
 // ── search ─────────────────────────────────────────────────
 
 program
@@ -50,8 +56,8 @@ program
     .option("-e, --engines <engines>", "Engines: google playwright,bing,wikipedia,etc")
     .option("-t, --time-range <range>", "Time range: day,week,month,year")
     .option("-l, --language <lang>", "Language code")
-    .option("-n, --limit <number>", "Max results", 8)
-    .option("-p, --page <number>", "Page number", 1)
+    .option("-n, --limit <number>", "Max results", parseNumber, 8)
+    .option("-p, --page <number>", "Page number", parseNumber, 1)
     .option("--json", "Raw SearXNG JSON (for jq piping)")
     .option("--text", "Human-readable output")
     .action(async (query: string, opts: OutputFlags & Partial<searxng.SearchParams>) => {
@@ -83,8 +89,8 @@ program
     .command("fetch")
     .description("Fetch a URL — browser rendering for JS pages, markitdown for static content")
     .argument("<url>", "URL to fetch")
-    .option("-n, --max-chars <number>", "Max characters", 15000)
-    .option("-o, --offset <number>", "Character offset for pagination", 0)
+    .option("-n, --max-chars <number>", "Max characters", parseNumber, 15000)
+    .option("-o, --offset <number>", "Character offset for pagination", parseNumber, 0)
     .option("--browser", "Force browser rendering")
     .option("--no-browser", "Skip browser, use markitdown only")
     .option("--text", "Output just the text content")
@@ -110,12 +116,15 @@ program
     .description("Open a URL in headless browser and extract content")
     .argument("<url>", "URL to browse")
     .option("--extract <selectors>", "CSS selectors to extract (comma-separated)")
-    .option("--wait <number>", "Seconds to wait after page load", 2)
+    .option("--wait <number>", "Seconds to wait after page load", parseNumber, 2)
     .option("--text", "Output just the extracted text")
     .action(async (url: string, opts: OutputFlags & { extract?: string; wait?: number }) => {
         try {
             if (!(await browser.isAvailable())) {
-                errorOut("No browser available. Try: searx doctor");
+                const browserPath = browser.getBrowserPath();
+                errorOut(browserPath
+                    ? "No browser available. Configured browser override failed to launch; run searx doctor --text for details or unset SEARX_BROWSER_PATH/browserPath."
+                    : "No browser available. Bundled Chromium failed to launch; run searx doctor --text for details or set SEARX_BROWSER_PATH.");
             }
 
             if (opts.extract) {
@@ -170,7 +179,7 @@ configCmd
         const config = cfg.loadConfig();
         writeOut(opts.json ? JSON.stringify({ path: cfg.CONFIG_PATH, config }, null, 2) : [
             `Config: ${cfg.CONFIG_PATH}`,
-            `browserPath: ${config.browserPath || "(auto)"}`,
+            `browserPath: ${config.browserPath || "(bundled Chromium)"}`,
             `browserState: ${config.browserState || cfg.DEFAULT_BROWSER_STATE}`,
             `browserProfile: ${config.browserProfile || cfg.DEFAULT_BROWSER_PROFILE}`,
             `renderPort: ${config.renderPort}`,
@@ -200,7 +209,7 @@ program
     .argument("<url>", "URL to open")
     .option("--state <path>", "Storage state path")
     .option("--profile <path>", "Persistent browser profile path")
-    .option("--timeout <number>", "Max seconds to wait for auth detection", 300)
+    .option("--timeout <number>", "Max seconds to wait for auth detection", parseNumber, 300)
     .action(async (url: string, opts: { state?: string; profile?: string; timeout?: number }) => {
         try {
             const saved = await browser.authenticate(url, {
@@ -253,7 +262,7 @@ program
 program
     .command("render-server")
     .description("Start HTTP rendering service in foreground (debug mode)")
-    .option("--port <number>", "Port to listen on", cfg.renderPort())
+    .option("--port <number>", "Port to listen on", parseNumber, cfg.renderPort())
     .action(async (opts: { port?: number }) => {
         try {
             await startServer(Number(opts.port) || cfg.renderPort());

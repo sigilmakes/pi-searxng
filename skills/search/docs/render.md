@@ -1,6 +1,6 @@
 # Search Skill: Render Server
 
-Playwright-backed SearXNG engines call a host render server. The render server uses `playwright-core` directly and reuses configured browser state/profile.
+Playwright-backed SearXNG engines call a host render server. The render server uses bundled Playwright Chromium by default and reuses configured browser state/profile.
 
 ## Lifecycle
 

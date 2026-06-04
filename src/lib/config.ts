@@ -90,20 +90,7 @@ export function resolveBrowserPath(): string | undefined {
     const configured = loadConfig().browserPath;
     if (configured && isExecutable(configured)) return configured;
 
-    for (const name of ["chromium", "chromium-browser", "google-chrome", "chrome", "msedge"]) {
-        const found = findOnPath(name);
-        if (found) return found;
-    }
-
-    return configured || undefined;
-}
-
-function findOnPath(name: string): string | undefined {
-    const paths = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
-    for (const dir of paths) {
-        const candidate = path.join(dir, name);
-        if (isExecutable(candidate)) return candidate;
-    }
+    // Leave executablePath unset so playwright-chromium uses its bundled browser.
     return undefined;
 }
 

@@ -17,7 +17,7 @@ flowchart LR
     SearXNG --> Engines[Enabled engines]
     Engines -->|browser-backed| Custom[Custom Python engines<br/>google_pw / ddg_pw / brave_pw]
     Custom --> Render
-    Render --> Browser[Chromium via playwright-core]
+    Render --> Browser[Bundled Chromium via playwright-chromium]
 
     CLI --> Fetch[src/lib/fetch.ts]
     Fetch --> Markitdown[markitdown via uvx]
@@ -30,7 +30,7 @@ flowchart LR
 - `src/index.ts` — thin pi extension: `/searxng`, PATH/symlink setup, session-start lifecycle.
 - `src/lib/searxng.ts` — SearXNG JSON API client and engine listing.
 - `src/lib/service.ts` — Docker Compose lifecycle for the bundled SearXNG service.
-- `src/lib/browser.ts` — Playwright rendering/auth using `playwright-core`.
+- `src/lib/browser.ts` — Playwright rendering/auth using bundled `playwright-chromium`, with optional system browser override.
 - `src/lib/render.ts` — background render-server lifecycle and PID/log files.
 - `src/render-server.ts` — HTTP service used by custom SearXNG engines.
 - `docker/` — Docker Compose, SearXNG settings, and custom offline engines.
@@ -63,7 +63,7 @@ sequenceDiagram
 2. CLI calls local SearXNG at `http://localhost:8042/search?format=json`.
 3. SearXNG queries enabled engines.
 4. Browser-backed engines call `http://host.docker.internal:8118/render`.
-5. Render server launches/reuses Chromium through `playwright-core` and returns HTML/text.
+5. Render server launches/reuses Chromium through Playwright and returns HTML/text.
 6. Custom Python engine parses results and returns them to SearXNG.
 7. CLI normalizes output to JSON or `--text`.
 

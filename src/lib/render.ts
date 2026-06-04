@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadConfig, renderPort, renderUrl, resolveBrowserPath, browserStatePath, browserProfilePath } from "./config.js";
+import { renderPort, renderUrl, resolveBrowserPath, browserStatePath, browserProfilePath } from "./config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..", "..");
@@ -73,12 +73,12 @@ export async function start(): Promise<RenderStatus> {
     const out = fs.openSync(LOG_FILE, "a");
     const err = fs.openSync(LOG_FILE, "a");
     const port = renderPort();
-    const config = loadConfig();
+    const browserPath = resolveBrowserPath();
 
     const env = {
         ...process.env,
         SEARX_RENDER_PORT: String(port),
-        ...(resolveBrowserPath() ? { SEARX_BROWSER_PATH: resolveBrowserPath() as string } : {}),
+        ...(browserPath ? { SEARX_BROWSER_PATH: browserPath } : {}),
         SEARX_BROWSER_STATE: browserStatePath(),
         SEARX_BROWSER_PROFILE: browserProfilePath(),
     };

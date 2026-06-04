@@ -1,6 +1,6 @@
 {
   "name": "pi-searxng",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "SearXNG integration for pi — composable web search and fetch with Playwright browser rendering",
   "type": "module",
   "keywords": [
@@ -20,12 +20,18 @@
   "dependencies": {
     "commander": "^13.1.0",
     "jiti": "^2.4.2",
-    "playwright-core": "^1.60.0"
+    "playwright-chromium": "^1.60.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
   }
 }

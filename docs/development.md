@@ -13,6 +13,8 @@ Do not use relative-path pi installs for this package. The supported package sou
 ## Smoke tests
 
 ```bash
+npm run typecheck
+
 node --input-type=module - <<'JS'
 import { createJiti } from 'jiti/static';
 const jiti = createJiti(import.meta.url, { interopDefault: true });

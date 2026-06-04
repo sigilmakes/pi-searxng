@@ -14,7 +14,7 @@
  */
 
 import http from "node:http";
-import { render, close, isAvailable, type BrowserResult } from "./lib/browser.js";
+import { render, close, isAvailable, getBrowserPath, type BrowserResult } from "./lib/browser.js";
 
 const DEFAULT_PORT = 8118;
 
@@ -40,7 +40,10 @@ function sendJSON(res: http.ServerResponse, status: number, data: unknown) {
 
 export async function startServer(port = DEFAULT_PORT): Promise<void> {
     if (!(await isAvailable())) {
-        console.error("No browser available. Set SEARX_BROWSER_PATH or run: npx playwright install chromium");
+        const browserPath = getBrowserPath();
+        console.error(browserPath
+            ? "No browser available. Configured browser override failed to launch; unset SEARX_BROWSER_PATH/browserPath to use bundled Chromium."
+            : "No browser available. Bundled Chromium failed to launch; reinstall/update pi-searxng, check Playwright/browser runtime dependencies, or set SEARX_BROWSER_PATH to a working Chromium/Chrome binary.");
         process.exit(1);
     }
 

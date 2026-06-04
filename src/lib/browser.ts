@@ -1,14 +1,14 @@
 /**
  * Browser rendering via Playwright Node API.
  *
- * Uses playwright-core directly. Browser auth uses a persistent profile so
+ * Uses Playwright's Chromium package. Browser auth uses a persistent profile so
  * CAPTCHA/login state survives beyond cookies/localStorage.
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import type { Browser, BrowserContext, BrowserContextOptions, LaunchOptions } from "playwright-core";
-import { chromium } from "playwright-core";
+import type { Browser, BrowserContext, BrowserContextOptions, LaunchOptions } from "playwright-chromium";
+import { chromium } from "playwright-chromium";
 import { browserProfilePath, browserStatePath, resolveBrowserPath } from "./config.js";
 
 export interface BrowserResult {

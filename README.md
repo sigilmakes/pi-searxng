@@ -1,6 +1,6 @@
 # pi-searxng
 
-SearXNG integration for pi. Provides a composable `searx` CLI, a `/searxng` TUI command, local SearXNG Docker lifecycle management, and Playwright-powered browser rendering via `playwright-core`.
+SearXNG integration for pi. Provides a composable `searx` CLI, a `/searxng` TUI command, local SearXNG Docker lifecycle management, and bundled Playwright Chromium browser rendering.
 
 ## Install
 
@@ -34,7 +34,7 @@ searx browse "https://example.com" --extract "h1,h2"
 
 searx doctor
 searx config show
-searx config set browserPath "$(which chromium)"
+searx config set browserPath "$(which chromium)"  # optional override
 searx browser-auth "https://www.google.com/search?q=test"
 searx render start / status / restart / stop
 searx render-server --port 8118          # foreground debug mode
@@ -52,11 +52,13 @@ All output is JSON by default. Add `--text` for human-readable output.
 
 Browser binary selection:
 
-```bash
-# Standard systems: install Playwright chromium if desired
-npx playwright install chromium
+1. `SEARX_BROWSER_PATH`, if set
+2. configured `browserPath`, if executable
+3. bundled `playwright-chromium` browser
 
-# Custom browser path (NixOS, system Chromium, etc.)
+Optional override for system Chromium/Chrome or custom builds:
+
+```bash
 export SEARX_BROWSER_PATH=$(which chromium)
 ```
 
@@ -102,4 +104,4 @@ On session start it:
 - Docker
 - Node.js
 - `uvx` for markitdown fetch fallback
-- Chromium/Chrome for browser rendering (`SEARX_BROWSER_PATH` can point to it)
+- Browser rendering is bundled through `playwright-chromium`; `SEARX_BROWSER_PATH` can override it

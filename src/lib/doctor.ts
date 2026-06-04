@@ -51,8 +51,15 @@ export async function runDoctor(): Promise<DoctorResult> {
     if (!renderStatus.healthy) warnings.push("Render server is not healthy. Try: searx render start");
 
     const browserPath = resolveBrowserPath();
+    if (config.browserPath && !browserPath && !process.env.SEARX_BROWSER_PATH) {
+        warnings.push("Configured browserPath is not executable; bundled Chromium will be used.");
+    }
     const browserAvailable = await browser.isAvailable();
-    if (!browserAvailable) warnings.push("Browser cannot launch. Try: searx config set browserPath $(which chromium)");
+    if (!browserAvailable) {
+        warnings.push(browserPath
+            ? "Configured browser override cannot launch. Check SEARX_BROWSER_PATH/browserPath or unset it to use bundled Chromium."
+            : "Bundled Chromium cannot launch. Reinstall/update pi-searxng, check Playwright/browser runtime dependencies, or set SEARX_BROWSER_PATH/browserPath to a working Chromium/Chrome binary.");
+    }
 
     const state = browserStatePath();
     const statePresent = fs.existsSync(state);
@@ -112,7 +119,7 @@ export function doctorText(result: DoctorResult): string {
     lines.push(`SearXNG: ${result.searxng ? "running" : "not responding"}`);
     lines.push(`Render server: ${result.renderServer.healthy ? "healthy" : "not healthy"} (${result.renderServer.url})`);
     if (result.renderServer.pid) lines.push(`Render PID: ${result.renderServer.pid}`);
-    lines.push(`Browser: ${result.browser.available ? "available" : "unavailable"}${result.browser.path ? ` (${result.browser.path})` : ""}`);
+    lines.push(`Browser: ${result.browser.available ? "available" : "unavailable"} (${result.browser.path || "bundled Chromium"})`);
     lines.push(`Browser state: ${result.browser.statePresent ? "present" : "absent"} (${result.browser.statePath})`);
     lines.push(`Browser profile: ${result.browser.profilePresent ? "present" : "absent"} (${result.browser.profilePath})`);
     lines.push(`Playwright engines: ${result.engines.playwright.length ? result.engines.playwright.join(", ") : "none enabled"}`);
