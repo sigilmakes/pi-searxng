@@ -86,27 +86,32 @@ export function renderUrl(): string {
 
 export function resolveBrowserPath(): string | undefined {
     if (process.env.SEARX_BROWSER_PATH) return process.env.SEARX_BROWSER_PATH;
+
     const configured = loadConfig().browserPath;
-    if (configured) return configured;
+    if (configured && isExecutable(configured)) return configured;
 
     for (const name of ["chromium", "chromium-browser", "google-chrome", "chrome", "msedge"]) {
         const found = findOnPath(name);
         if (found) return found;
     }
 
-    return undefined;
+    return configured || undefined;
 }
 
 function findOnPath(name: string): string | undefined {
     const paths = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
     for (const dir of paths) {
         const candidate = path.join(dir, name);
-        try {
-            fs.accessSync(candidate, fs.constants.X_OK);
-            return candidate;
-        } catch {
-            // keep looking
-        }
+        if (isExecutable(candidate)) return candidate;
     }
     return undefined;
+}
+
+function isExecutable(candidate: string): boolean {
+    try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
 }
