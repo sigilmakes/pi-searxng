@@ -21,7 +21,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const COMPOSE_FILE = path.join(PACKAGE_ROOT, "docker", "docker-compose.yaml");
 const BIN_DIR = path.join(PACKAGE_ROOT, "bin");
-const NM_BIN_DIR = path.join(PACKAGE_ROOT, "node_modules", ".bin");
 const SEARX_BIN = path.join(BIN_DIR, "searx");
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8042";
 
@@ -43,7 +42,13 @@ function ensureDirsOnPath(): string[] {
     const currentPath = process.env.PATH || "";
     const paths = currentPath.split(path.delimiter);
     const added: string[] = [];
-    for (const dir of [NM_BIN_DIR, BIN_DIR]) if (!paths.includes(dir)) added.push(dir);
+    // Only put our own `bin/` (which holds the `searx` CLI) on PATH. Do NOT add
+    // `node_modules/.bin`: it contains this package's dev dependencies (including
+    // a bundled `pi`), and prepending it shadows the user's real `pi` for every
+    // child process pi spawns (bash tool, `!`/`!!`, etc.). `searx` is already
+    // reachable via the `~/.pi/agent/bin/searx` symlink, and the render server
+    // invokes `jiti` by full path, so `node_modules/.bin` is not needed on PATH.
+    for (const dir of [BIN_DIR]) if (!paths.includes(dir)) added.push(dir);
     if (added.length > 0) process.env.PATH = `${added.join(path.delimiter)}${path.delimiter}${currentPath}`;
     return added;
 }
